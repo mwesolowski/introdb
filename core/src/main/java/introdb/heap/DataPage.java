@@ -1,37 +1,42 @@
 package introdb.heap;
 
-import introdb.heap.serialization.Serializer;
-
-import java.io.IOException;
-import java.io.Serializable;
-import java.util.Objects;
+import java.util.Arrays;
 
 final class DataPage extends Page {
   private static final int FREE_SPACE_OFFSET_OFFSET = PAGE_CONTENT_OFFSET;
   private static final int DATA_SEGMENT_OFFSET = FREE_SPACE_OFFSET_OFFSET + OFFSET_FIELD_BYTES;
-  private static final int RECORD_SIZE_FIELD_BYTES = Integer.BYTES;
+  private static final int DELETED_FLAG_BYTES = 1;
+  private static final int SIZE_FIELD_BYTES = Integer.BYTES;
+  private static final int RECORD_META_DATA_BYTES = DELETED_FLAG_BYTES + 2 * SIZE_FIELD_BYTES;
 
-  private DataPage(final byte[] bytes, final Serializer serializer) {
-    super(bytes, serializer);
+  private DataPage(final byte[] bytes) {
+    super(bytes);
   }
 
-  static DataPage newPage(final int pageNr, final byte[] bytes, final Serializer serializer) {
-    assert(pageNr > 0); // Data page number must be positive. Page 0 is reserved for metadata.
-    var page = new DataPage(bytes, serializer);
+  static DataPage newPage(final int pageNr, final byte[] bytes) {
+    assert (pageNr > 0); // Data page number must be positive. Page 0 is reserved for metadata.
+    final var page = new DataPage(bytes);
     page.setPageNumber(pageNr);
     page.setFreeSpaceOffset(DATA_SEGMENT_OFFSET);
     return page;
   }
 
-  static DataPage existingPage(final byte[] bytes, final Serializer serializer) {
-    var page = new DataPage(bytes, serializer);
-    assert(page.getPageNumber() > 0); // Data page number must be positive. Page 0 is reserved for metadata.
+  static DataPage existingPage(final byte[] bytes) {
+    final var page = new DataPage(bytes);
+    assert (page.getPageNumber() > 0); // Data page number must be positive. Page 0 is reserved for metadata.
     return page;
   }
 
-  boolean addRecord(final Record record) throws IOException {
-    if (canRecordBeAddedToPage(record)) {
-      final var newFreeSpaceOffset = writeRecord(record, getFreeSpaceOffset());
+  boolean addRecord(final byte[] key, final byte[] value) {
+    final var recordDataLength = RECORD_META_DATA_BYTES + key.length + value.length;
+    final var bufferCapacity = byteBuffer.capacity();
+    final var freeSpaceOffset = getFreeSpaceOffset();
+    final var newFreeSpaceOffset = freeSpaceOffset + recordDataLength;
+    if (DATA_SEGMENT_OFFSET + recordDataLength > bufferCapacity) {
+      throw new IllegalArgumentException("Entry is too big.");
+    }
+    if (newFreeSpaceOffset <= bufferCapacity) {
+      writeRecord(freeSpaceOffset, key, value);
       setFreeSpaceOffset(newFreeSpaceOffset);
       return true;
     } else {
@@ -39,29 +44,19 @@ final class DataPage extends Page {
     }
   }
 
-  private boolean canRecordBeAddedToPage(final Record record) throws IOException {
-    final var recordDataLength = serializer.serialize(record).length + RECORD_SIZE_FIELD_BYTES;
-    if (DATA_SEGMENT_OFFSET + recordDataLength > byteBuffer.capacity()) {
-      throw new IllegalArgumentException("Entry is too big.");
-    }
-    return recordDataLength <= byteBuffer.capacity() - getFreeSpaceOffset();
-  }
-
-  Record removeRecord(final Serializable key) throws IOException, ClassNotFoundException {
-    var offset = findRecordOffset(key);
-    if (offset > -1) {
-      var record = readRecord(offset);
-      record.markAsDeleted();
-      writeRecord(record, offset);
-      return record;
+  byte[] removeRecord(final byte[] key) {
+    final var recordOffset = findRecordOffset(key);
+    if (recordOffset > -1) {
+      byteBuffer.position(recordOffset).put((byte) 1);
+      return readRecordValue(recordOffset);
     } else {
       return null;
     }
   }
 
-  Record getRecord(final Serializable key) throws IOException, ClassNotFoundException {
-    var offset = findRecordOffset(key);
-    return offset > -1 ? readRecord(offset) : null;
+  byte[] getRecordValue(final byte[] key) {
+    final var recordOffset = findRecordOffset(key);
+    return recordOffset > -1 ? readRecordValue(recordOffset) : null;
   }
 
   private int getFreeSpaceOffset() {
@@ -72,33 +67,45 @@ final class DataPage extends Page {
     byteBuffer.putInt(FREE_SPACE_OFFSET_OFFSET, freeSpaceOffset);
   }
 
-  private int findRecordOffset(final Serializable key) throws IOException, ClassNotFoundException {
-    var offset = DATA_SEGMENT_OFFSET;
-    var length = byteBuffer.getInt(offset);
-    while (offset < getFreeSpaceOffset()) {
-      var record = readRecord(offset);
-      if (Objects.equals(record.getKey(), key) && !record.isDeleted()) {
-        return offset;
-      } else {
-        offset += RECORD_SIZE_FIELD_BYTES + length;
-        length = byteBuffer.getInt(offset);
+  private int findRecordOffset(final byte[] wantedKey) {
+    final var wantedKeyLength = wantedKey.length;
+    final var freeSpaceOffset = getFreeSpaceOffset();
+    var currentRecordOffset = DATA_SEGMENT_OFFSET;
+    while (currentRecordOffset < freeSpaceOffset) {
+      byteBuffer.position(currentRecordOffset);
+      final var isDeleted = byteBuffer.get();
+      final var keyLength = byteBuffer.getInt();
+      final var valueLength = byteBuffer.getInt();
+      if (isDeleted == (byte) 0 && keyLength == wantedKeyLength) {
+        final var key = new byte[keyLength];
+        byteBuffer.position(currentRecordOffset + RECORD_META_DATA_BYTES);
+        byteBuffer.get(key);
+        if (Arrays.equals(key, wantedKey)) {
+          return currentRecordOffset;
+        }
       }
+      currentRecordOffset += RECORD_META_DATA_BYTES + keyLength + valueLength;
     }
     return -1;
   }
 
-  private Record readRecord(final int offset) throws IOException, ClassNotFoundException {
-    var length = byteBuffer.getInt(offset);
-    final var serializedRecord = new byte[length];
-    byteBuffer.position(offset + RECORD_SIZE_FIELD_BYTES).get(serializedRecord);
-    return (Record) serializer.deserialize(serializedRecord);
+  private byte[] readRecordValue(final int offset) {
+    byteBuffer.position(offset + DELETED_FLAG_BYTES);
+    final var keyLength = byteBuffer.getInt();
+    final var valueLength = byteBuffer.getInt();
+    final var value = new byte[valueLength];
+    byteBuffer.position(offset + RECORD_META_DATA_BYTES + keyLength);
+    byteBuffer.get(value);
+    return value;
   }
 
-  private int writeRecord(final Record record, final int offset) throws IOException {
-    final var serializedRecord = serializer.serialize(record);
-    final var serializedRecordLength = serializedRecord.length;
-    byteBuffer.position(offset).putInt(serializedRecordLength).put(serializedRecord);
-    return offset + RECORD_SIZE_FIELD_BYTES + serializedRecordLength;
+  private void writeRecord(final int offset, final byte[] key, final byte[] value) {
+    byteBuffer.position(offset)
+        .put((byte) 0) // is deleted
+        .putInt(key.length) // serialized key length
+        .putInt(value.length) // serialized value length
+        .put(key) // serialized key
+        .put(value); // serialized value
   }
 
 }

@@ -1,6 +1,5 @@
 package introdb.heap;
 
-import introdb.heap.serialization.JdkSerializer;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
@@ -10,56 +9,57 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.junit.jupiter.api.Assertions.*;
 
 class DataPageTest {
+  private static final int pageSize = 4 * 1024;
+  private final Serializer serializer = new Serializer(pageSize);
   private DataPage page;
+
 
   @BeforeEach
   void setUp() {
-    int pageSize = 4 * 1024;
-    page = DataPage.newPage(1, new byte[pageSize], new JdkSerializer(pageSize));
+    page = DataPage.newPage(1, new byte[pageSize]);
   }
 
   @Test
-  void addRecord() throws IOException, ClassNotFoundException {
+  void addRecord() throws IOException {
     // given
-    var newRecord = new Record("key", "value");
+    page.addRecord(serializer.serialize("key"), serializer.serialize("value"));
 
     // when
-    page.addRecord(newRecord);
-    var storedRecord = page.getRecord("key");
+    var storedValue = page.getRecordValue(serializer.serialize("key"));
 
     // then
-    assertNotNull(storedRecord, "record does not exist");
-    assertEquals(storedRecord.getValue(), newRecord.getValue(), "stored value is different than original");
+    assertNotNull(storedValue, "record does not exist");
+    assertArrayEquals(storedValue, serializer.serialize("value"), "stored value is different than original");
   }
 
   @Test
-  void addAndThenRemoveRecord() throws IOException, ClassNotFoundException {
+  void addAndThenRemoveRecord() throws IOException {
     // given
-    page.addRecord(new Record("key", "value"));
+    page.addRecord(serializer.serialize("key"), serializer.serialize("value"));
 
     // when
-    page.removeRecord("key");
-    var storedRecord = page.getRecord("key");
+    page.removeRecord(serializer.serialize("key"));
+    var storedValue = page.getRecordValue(serializer.serialize("key"));
 
     // then
-    assertNull(storedRecord, "record is not deleted");
+    assertNull(storedValue, "record is not deleted");
   }
 
   @Test
   void addMultipleRecords() throws IOException, ClassNotFoundException {
     // given
-    page.addRecord(new Record("key1", "value1"));
-    page.addRecord(new Record("key2", "value2"));
-    page.addRecord(new Record("key3", "value3"));
-    page.addRecord(new Record("key4", "value4"));
-    page.addRecord(new Record("key5", "value5"));
+    page.addRecord(serializer.serialize("key1"), serializer.serialize("value1"));
+    page.addRecord(serializer.serialize("key2"), serializer.serialize("value2"));
+    page.addRecord(serializer.serialize("key3"), serializer.serialize("value3"));
+    page.addRecord(serializer.serialize("key4"), serializer.serialize("value4"));
+    page.addRecord(serializer.serialize("key5"), serializer.serialize("value5"));
 
     // when
-    var record = page.getRecord("key3");
+    var storedValue = page.getRecordValue(serializer.serialize("key3"));
 
     // then
-    assertNotNull(record, "record is missing");
-    assertEquals(record.getValue(), "value3", "stored value is incorrect");
+    assertNotNull(storedValue, "record is missing");
+    assertArrayEquals(storedValue, serializer.serialize("value3"), "stored value is incorrect");
   }
 
   @Test
@@ -68,8 +68,8 @@ class DataPageTest {
     var value = new byte[2 * 1024];
 
     // when
-    var firstRecordAdded = page.addRecord(new Record("key1", value));
-    var secondRecordAdded = page.addRecord(new Record("key2", value));
+    var firstRecordAdded = page.addRecord(serializer.serialize("key1"), value);
+    var secondRecordAdded = page.addRecord(serializer.serialize("key2"), value);
 
     // then
     assertTrue(firstRecordAdded, "adding first record should succeed");
@@ -82,7 +82,7 @@ class DataPageTest {
     final var value = new byte[4 * 1024];
 
     // when
-    assertThatThrownBy(() -> page.addRecord(new Record("key", value)))
+    assertThatThrownBy(() -> page.addRecord(serializer.serialize("key"), value))
         .isInstanceOf(IllegalArgumentException.class);
   }
 }

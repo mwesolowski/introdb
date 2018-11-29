@@ -1,17 +1,23 @@
-package introdb.heap.serialization;
+package introdb.heap;
 
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
 import java.io.IOException;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 
-class SerializationTest {
+class SerializerTest {
+  private Serializer serializer;
+
+  @BeforeEach
+  void setUp() {
+    serializer = new Serializer(4 * 1024);
+  }
 
   @Test
-  void jdkSerializationTest() throws ClassNotFoundException, IOException {
+  void singleSerializationTest() throws ClassNotFoundException, IOException {
     // given
-    var serializer = new JdkSerializer(32);
     var entry = "1234567890";
 
     // when

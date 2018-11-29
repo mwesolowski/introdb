@@ -1,12 +1,10 @@
 package introdb.heap;
 
-import introdb.heap.serialization.Serializer;
-
 final class MetaDataPage extends Page {
   private static final int NUMBER_OF_PAGES_OFFSET = PAGE_CONTENT_OFFSET;
 
-  MetaDataPage(final byte[] bytes, final Serializer serializer) {
-    super(bytes, serializer);
+  MetaDataPage(final byte[] bytes) {
+    super(bytes);
   }
 
   long getNumberOfPages() {

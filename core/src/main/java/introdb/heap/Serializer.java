@@ -1,16 +1,15 @@
-package introdb.heap.serialization;
+package introdb.heap;
 
 import java.io.*;
 
-final public class JdkSerializer implements Serializer {
+final class Serializer {
   private final int initialBufferCapacity;
 
-  public JdkSerializer(final int initialBufferCapacity) {
+  Serializer(final int initialBufferCapacity) {
     this.initialBufferCapacity = initialBufferCapacity;
   }
 
-  @Override
-  public byte[] serialize(final Serializable object) throws IOException {
+  byte[] serialize(final Serializable object) throws IOException {
     final var byteArrayOutputStream = new ByteArrayOutputStream(initialBufferCapacity);
     try (final var objectOutputStream = new ObjectOutputStream(byteArrayOutputStream)) {
       objectOutputStream.writeObject(object);
@@ -18,8 +17,7 @@ final public class JdkSerializer implements Serializer {
     }
   }
 
-  @Override
-  public Object deserialize(byte[] serializedObject) throws IOException, ClassNotFoundException {
+  Object deserialize(byte[] serializedObject) throws IOException, ClassNotFoundException {
     final var byteArrayInputStream = new ByteArrayInputStream(serializedObject);
     try (final var objectInputStream = new ObjectInputStream(byteArrayInputStream)) {
       return objectInputStream.readObject();

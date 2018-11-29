@@ -1,8 +1,5 @@
 package introdb.heap;
 
-import introdb.heap.serialization.JdkSerializer;
-import introdb.heap.serialization.Serializer;
-
 import java.io.IOException;
 import java.io.Serializable;
 import java.nio.MappedByteBuffer;
@@ -10,73 +7,79 @@ import java.nio.channels.FileChannel;
 import java.nio.file.Path;
 import java.nio.file.StandardOpenOption;
 
-public class SingleMemoryMappedUnorderedHeapFile implements Store {
-  private static final int META_DATA_PAGE_OFFSET = 0;
-
+final class SingleMemoryMappedUnorderedHeapFile implements Store {
+  private static final int META_DATA_PAGE_INDEX = 0;
   private final int pageSize;
   private final int maxNrPages;
   private final Serializer serializer;
   private final MappedByteBuffer mappedByteBuffer;
   private final MetaDataPage metaDataPage;
 
-  SingleMemoryMappedUnorderedHeapFile(Path path, int maxNrPages, int pageSize) throws IOException {
+  SingleMemoryMappedUnorderedHeapFile(final Path path, final int maxNrPages, final int pageSize) throws IOException {
     this.pageSize = pageSize;
     this.maxNrPages = maxNrPages;
-    this.serializer = new JdkSerializer(pageSize);
+    this.serializer = new Serializer(pageSize);
     this.mappedByteBuffer = createMappedByteBuffer(path, maxNrPages, pageSize);
     this.metaDataPage = createMetaDataPage(pageSize, mappedByteBuffer);
     initializeMetaData();
   }
 
   @Override
-  public Object remove(Serializable key) throws IOException, ClassNotFoundException {
+  public Object remove(final Serializable key) throws IOException, ClassNotFoundException {
+    final var serializedValue = removeRecord(key);
+    return serializedValue != null ? serializer.deserialize(serializedValue) : null;
+  }
+
+  @Override
+  public Object get(final Serializable key) throws IOException, ClassNotFoundException {
+    final var serializedKey = serializer.serialize(key);
     for (var pageNumber = 1; pageNumber <= metaDataPage.getNumberOfPages(); pageNumber++) {
-      var page = readPage(pageNumber);
-      var record = page.removeRecord(key);
-      if (record != null) {
-        writePage(page);
-        return record.getValue();
+      final var serializedRecordValue = (readPage(pageNumber)).getRecordValue(serializedKey);
+      if (serializedRecordValue != null) {
+        return serializer.deserialize(serializedRecordValue);
       }
     }
     return null;
   }
 
   @Override
-  public Object get(Serializable key) throws IOException, ClassNotFoundException {
-    for (var pageNumber = 1; pageNumber <= metaDataPage.getNumberOfPages(); pageNumber++) {
-      var record = (readPage(pageNumber)).getRecord(key);
-      if (record != null) {
-        return record.getValue();
-      }
-    }
-    return null;
-  }
-
-  @Override
-  public void put(Entry entry) throws IOException, ClassNotFoundException {
-    remove(entry.key());
-
-    var record = new Record(entry.key(), entry.value());
+  public void put(Entry entry) throws IOException {
+    removeRecord(entry.key());
+    final var serializedKey = serializer.serialize(entry.key());
+    final var serializedValue = serializer.serialize(entry.value());
     var lastPage = lastPage();
-    if (lastPage.addRecord(record)) {
+    if (lastPage.addRecord(serializedKey, serializedValue)) {
       writePage(lastPage);
     } else {
-      var newPage = addNextPage();
-      newPage.addRecord(record);
+      final var newPage = addNextPage();
+      newPage.addRecord(serializedKey, serializedValue);
       writePage(newPage);
     }
   }
 
-  private MappedByteBuffer createMappedByteBuffer(Path path, int maxNrPages, int pageSize) throws IOException {
+  private byte[] removeRecord(final Serializable key) throws IOException {
+    final var serializedKey = serializer.serialize(key);
+    for (var pageNumber = 1; pageNumber <= metaDataPage.getNumberOfPages(); pageNumber++) {
+      final var page = readPage(pageNumber);
+      final var serializedValue = page.removeRecord(serializedKey);
+      if (serializedValue != null) {
+        writePage(page);
+        return serializedValue;
+      }
+    }
+    return null;
+  }
+
+  private MappedByteBuffer createMappedByteBuffer(final Path path, final int maxNrPages, final int pageSize) throws IOException {
     final var maxFileSize = maxNrPages * pageSize;
     final var fileChannel = FileChannel.open(path, StandardOpenOption.CREATE, StandardOpenOption.READ, StandardOpenOption.WRITE);
     return fileChannel.map(FileChannel.MapMode.READ_WRITE, 0, maxFileSize);
   }
 
   private MetaDataPage createMetaDataPage(final int pageSize, final MappedByteBuffer mappedByteBuffer) {
-    var buff = new byte[pageSize];
-    mappedByteBuffer.position(META_DATA_PAGE_OFFSET).get(buff);
-    return new MetaDataPage(buff, serializer);
+    final var buff = new byte[pageSize];
+    mappedByteBuffer.position(META_DATA_PAGE_INDEX * pageSize).get(buff);
+    return new MetaDataPage(buff);
   }
 
   private void initializeMetaData() {
@@ -85,29 +88,29 @@ public class SingleMemoryMappedUnorderedHeapFile implements Store {
     }
   }
 
-  private DataPage readPage(int pageNumber) {
-    var pageOffset = pageSize * pageNumber;
-    var bytes = new byte[pageSize];
+  private DataPage readPage(final int pageNumber) {
+    final var pageOffset = pageSize * pageNumber;
+    final var bytes = new byte[pageSize];
     mappedByteBuffer.position(pageOffset).get(bytes);
-    return DataPage.existingPage(bytes, serializer);
+    return DataPage.existingPage(bytes);
   }
 
   private void writePage(final Page page) {
-    var pageOffset = pageSize * page.getPageNumber();
+    final var pageOffset = pageSize * page.getPageNumber();
     mappedByteBuffer.position(pageOffset).put(page.bytes);
   }
 
   private DataPage addNextPage() {
-    var numberOfPages = metaDataPage.getNumberOfPages();
+    final var numberOfPages = metaDataPage.getNumberOfPages();
     if (numberOfPages == maxNrPages) {
       throw new TooManyPages(maxNrPages);
     }
-    var pageNumber = (int) numberOfPages + 1;
+    final var pageNumber = (int) numberOfPages + 1;
     return createPage(pageNumber);
   }
 
   private DataPage createPage(final int pageNumber) {
-    var page = DataPage.newPage(pageNumber, new byte[pageSize], serializer);
+    final var page = DataPage.newPage(pageNumber, new byte[pageSize]);
     metaDataPage.setNumberOfPages(pageNumber);
     writePage(page);
     writePage(metaDataPage);
@@ -115,7 +118,7 @@ public class SingleMemoryMappedUnorderedHeapFile implements Store {
   }
 
   private DataPage lastPage() {
-    var numberOfPages = metaDataPage.getNumberOfPages();
+    final var numberOfPages = metaDataPage.getNumberOfPages();
     return readPage((int) numberOfPages);
   }
 

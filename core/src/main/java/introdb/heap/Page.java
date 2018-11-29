@@ -1,7 +1,5 @@
 package introdb.heap;
 
-import introdb.heap.serialization.Serializer;
-
 import java.nio.ByteBuffer;
 
 abstract class Page {
@@ -11,12 +9,10 @@ abstract class Page {
 
   final byte[] bytes;
   final ByteBuffer byteBuffer;
-  final Serializer serializer;
 
-  Page(final byte[] bytes, final Serializer serializer) {
+  Page(final byte[] bytes) {
     this.bytes = bytes;
     this.byteBuffer = ByteBuffer.wrap(bytes);
-    this.serializer = serializer;
   }
 
   int getPageNumber() {
