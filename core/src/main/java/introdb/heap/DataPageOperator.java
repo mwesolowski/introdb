@@ -3,7 +3,7 @@ package introdb.heap;
 import java.nio.ByteBuffer;
 import java.util.Arrays;
 
-final class DataPage {
+final class DataPageOperator {
   private static final int DELETED_FLAG_BYTES = 1;
   private static final int SIZE_FIELD_BYTES = Integer.BYTES;
   private static final int RECORD_META_DATA_BYTES = DELETED_FLAG_BYTES + 2 * SIZE_FIELD_BYTES;
@@ -14,18 +14,17 @@ final class DataPage {
 
   private final ByteBuffer byteBuffer;
 
-  private DataPage(final byte[] bytes) {
-    this.byteBuffer = ByteBuffer.wrap(bytes);
+  DataPageOperator(final byte[] bytes) {
+    byteBuffer = ByteBuffer.wrap(bytes);
   }
 
-  static DataPage newPage(final byte[] bytes) {
-    final var page = new DataPage(bytes);
-    page.setFreeSpaceOffset(DATA_SEGMENT_OFFSET);
-    return page;
+  void initializeNewPage() {
+    byteBuffer.clear();
+    setFreeSpaceOffset(DATA_SEGMENT_OFFSET);
   }
 
-  static DataPage existingPage(final byte[] bytes) {
-    return new DataPage(bytes);
+  void initializeExistingPage() {
+    byteBuffer.clear();
   }
 
   boolean addRecord(final byte[] key, final byte[] value) {

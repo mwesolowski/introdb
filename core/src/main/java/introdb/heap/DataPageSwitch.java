@@ -6,35 +6,36 @@ import java.util.Arrays;
 final class DataPageSwitch {
   private final MappedByteBuffer mappedByteBuffer;
   private final int pageSize;
-  private final byte[] byteBuffer;
+  private final byte[] selectedPageData;
   private int selectedPageOffset;
-  private DataPage selectedPage;
+  private DataPageOperator pageOperator;
 
   DataPageSwitch(final MappedByteBuffer mappedByteBuffer, final int pageSize) {
     this.mappedByteBuffer = mappedByteBuffer;
     this.pageSize = pageSize;
-    this.byteBuffer = new byte[pageSize];
+    this.selectedPageData = new byte[pageSize];
+    this.pageOperator = new DataPageOperator(selectedPageData);
   }
 
   void loadPage(final int pageNumber) {
     selectedPageOffset = pageSize * pageNumber;
-    mappedByteBuffer.position(selectedPageOffset).get(byteBuffer);
-    selectedPage = DataPage.existingPage(byteBuffer);
+    mappedByteBuffer.position(selectedPageOffset).get(selectedPageData);
+    pageOperator.initializeExistingPage();
   }
 
   void createAndSelectPage(final int pageNumber) {
     selectedPageOffset = pageSize * pageNumber;
-    Arrays.fill(byteBuffer, (byte) 0);
-    selectedPage = DataPage.newPage(byteBuffer);
+    Arrays.fill(selectedPageData, (byte) 0);
+    pageOperator.initializeNewPage();
     saveSelectedPage();
   }
 
   byte[] findInSelectedPage(final byte[] key) {
-    return selectedPage.getRecordValue(key);
+    return pageOperator.getRecordValue(key);
   }
 
   boolean addToSelectedPage(final byte[] key, final byte[] value) {
-    final boolean added = selectedPage.addRecord(key, value);
+    final boolean added = pageOperator.addRecord(key, value);
     if (added) {
       saveSelectedPage();
     }
@@ -42,7 +43,7 @@ final class DataPageSwitch {
   }
 
   byte[] removeFromSelectedPage(final byte[] key) {
-    final var removedValue = selectedPage.removeRecord(key);
+    final var removedValue = pageOperator.removeRecord(key);
     if (removedValue != null) {
       saveSelectedPage();
     }
@@ -50,7 +51,7 @@ final class DataPageSwitch {
   }
 
   private void saveSelectedPage() {
-    mappedByteBuffer.position(selectedPageOffset).put(byteBuffer);
+    mappedByteBuffer.position(selectedPageOffset).put(selectedPageData);
   }
 
 }

@@ -8,25 +8,26 @@ import java.io.IOException;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.junit.jupiter.api.Assertions.*;
 
-class DataPageTest {
+class DataPageOperatorTest {
   private static final int pageSize = 4 * 1024;
-  private DataPage page;
+  private DataPageOperator pageOperator;
   private Serializer serializer;
 
 
   @BeforeEach
   void setUp() throws IOException {
-    page = DataPage.newPage(new byte[pageSize]);
+    pageOperator = new DataPageOperator(new byte[pageSize]);
+    pageOperator.initializeNewPage();
     serializer = new Serializer(pageSize);
   }
 
   @Test
   void addRecord() throws IOException {
     // given
-    page.addRecord(serializer.serialize("key"), serializer.serialize("value"));
+    pageOperator.addRecord(serializer.serialize("key"), serializer.serialize("value"));
 
     // when
-    var storedValue = page.getRecordValue(serializer.serialize("key"));
+    var storedValue = pageOperator.getRecordValue(serializer.serialize("key"));
 
     // then
     assertNotNull(storedValue, "record does not exist");
@@ -36,27 +37,27 @@ class DataPageTest {
   @Test
   void addAndThenRemoveRecord() throws IOException {
     // given
-    page.addRecord(serializer.serialize("key"), serializer.serialize("value"));
+    pageOperator.addRecord(serializer.serialize("key"), serializer.serialize("value"));
 
     // when
-    page.removeRecord(serializer.serialize("key"));
-    var storedValue = page.getRecordValue(serializer.serialize("key"));
+    pageOperator.removeRecord(serializer.serialize("key"));
+    var storedValue = pageOperator.getRecordValue(serializer.serialize("key"));
 
     // then
     assertNull(storedValue, "record is not deleted");
   }
 
   @Test
-  void addMultipleRecords() throws IOException, ClassNotFoundException {
+  void addMultipleRecords() throws IOException {
     // given
-    page.addRecord(serializer.serialize("key1"), serializer.serialize("value1"));
-    page.addRecord(serializer.serialize("key2"), serializer.serialize("value2"));
-    page.addRecord(serializer.serialize("key3"), serializer.serialize("value3"));
-    page.addRecord(serializer.serialize("key4"), serializer.serialize("value4"));
-    page.addRecord(serializer.serialize("key5"), serializer.serialize("value5"));
+    pageOperator.addRecord(serializer.serialize("key1"), serializer.serialize("value1"));
+    pageOperator.addRecord(serializer.serialize("key2"), serializer.serialize("value2"));
+    pageOperator.addRecord(serializer.serialize("key3"), serializer.serialize("value3"));
+    pageOperator.addRecord(serializer.serialize("key4"), serializer.serialize("value4"));
+    pageOperator.addRecord(serializer.serialize("key5"), serializer.serialize("value5"));
 
     // when
-    var storedValue = page.getRecordValue(serializer.serialize("key3"));
+    var storedValue = pageOperator.getRecordValue(serializer.serialize("key3"));
 
     // then
     assertNotNull(storedValue, "record is missing");
@@ -69,8 +70,8 @@ class DataPageTest {
     var value = new byte[2 * 1024];
 
     // when
-    var firstRecordAdded = page.addRecord(serializer.serialize("key1"), value);
-    var secondRecordAdded = page.addRecord(serializer.serialize("key2"), value);
+    var firstRecordAdded = pageOperator.addRecord(serializer.serialize("key1"), value);
+    var secondRecordAdded = pageOperator.addRecord(serializer.serialize("key2"), value);
 
     // then
     assertTrue(firstRecordAdded, "adding first record should succeed");
@@ -78,12 +79,12 @@ class DataPageTest {
   }
 
   @Test
-  void addRecordTooBigForNewPage() throws IOException {
+  void addRecordTooBigForNewPage() {
     // given
     final var value = new byte[4 * 1024];
 
     // when
-    assertThatThrownBy(() -> page.addRecord(serializer.serialize("key"), value))
+    assertThatThrownBy(() -> pageOperator.addRecord(serializer.serialize("key"), value))
         .isInstanceOf(IllegalArgumentException.class);
   }
 }
