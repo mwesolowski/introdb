@@ -10,13 +10,14 @@ import static org.junit.jupiter.api.Assertions.*;
 
 class DataPageTest {
   private static final int pageSize = 4 * 1024;
-  private final Serializer serializer = new Serializer(pageSize);
   private DataPage page;
+  private Serializer serializer;
 
 
   @BeforeEach
-  void setUp() {
+  void setUp() throws IOException {
     page = DataPage.newPage(new byte[pageSize]);
+    serializer = new Serializer(pageSize);
   }
 
   @Test

@@ -3,18 +3,26 @@ package introdb.heap;
 import java.io.*;
 
 final class Serializer {
-  private final int initialBufferCapacity;
+  private final ByteArrayOutputStream byteArrayOutputStream;
+  private final ObjectOutputStream objectOutputStream;
+  private final byte[] serializationMagicAndVersion;
 
-  Serializer(final int initialBufferCapacity) {
-    this.initialBufferCapacity = initialBufferCapacity;
+  Serializer(final int initialBufferCapacity) throws IOException {
+    this.byteArrayOutputStream = new ByteArrayOutputStream(initialBufferCapacity);
+    this.objectOutputStream = new ObjectOutputStream(byteArrayOutputStream);
+    this.serializationMagicAndVersion = byteArrayOutputStream.toByteArray();
   }
 
   byte[] serialize(final Serializable object) throws IOException {
-    final var byteArrayOutputStream = new ByteArrayOutputStream(initialBufferCapacity);
-    try (final var objectOutputStream = new ObjectOutputStream(byteArrayOutputStream)) {
-      objectOutputStream.writeObject(object);
-      return byteArrayOutputStream.toByteArray();
-    }
+    resetOutputBuffers();
+    objectOutputStream.writeObject(object);
+    return byteArrayOutputStream.toByteArray();
+  }
+
+  private void resetOutputBuffers() throws IOException {
+    byteArrayOutputStream.reset();
+    byteArrayOutputStream.write(serializationMagicAndVersion, 0, serializationMagicAndVersion.length);
+    objectOutputStream.reset();
   }
 
   Object deserialize(byte[] serializedObject) throws IOException, ClassNotFoundException {
