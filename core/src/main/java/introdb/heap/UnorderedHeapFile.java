@@ -10,7 +10,7 @@ final class UnorderedHeapFile implements Store {
   UnorderedHeapFile(Path path, int maxNrPages, int pageSize) throws IOException {
     final var maximumFileSize = (long) maxNrPages * (long) pageSize;
     if (maximumFileSize <= Integer.MAX_VALUE) {
-      delegate = new SingleMemoryMappedUnorderedHeapFile(path, maxNrPages, pageSize);
+      delegate = new SingleMMapUnorderedHeapFile(path, maxNrPages, pageSize);
     } else {
       // TODO implement MultipleMemoryMappedUnorderedHeapFile
       throw new UnsupportedOperationException(

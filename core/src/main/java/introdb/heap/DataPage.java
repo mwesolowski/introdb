@@ -1,30 +1,31 @@
 package introdb.heap;
 
+import java.nio.ByteBuffer;
 import java.util.Arrays;
 
-final class DataPage extends Page {
-  private static final int FREE_SPACE_OFFSET_OFFSET = PAGE_CONTENT_OFFSET;
-  private static final int DATA_SEGMENT_OFFSET = FREE_SPACE_OFFSET_OFFSET + OFFSET_FIELD_BYTES;
+final class DataPage {
   private static final int DELETED_FLAG_BYTES = 1;
   private static final int SIZE_FIELD_BYTES = Integer.BYTES;
   private static final int RECORD_META_DATA_BYTES = DELETED_FLAG_BYTES + 2 * SIZE_FIELD_BYTES;
+  private static final int OFFSET_FIELD_BYTES = Integer.BYTES;
+
+  private static final int FREE_SPACE_OFFSET_OFFSET = 0;
+  private static final int DATA_SEGMENT_OFFSET = FREE_SPACE_OFFSET_OFFSET + OFFSET_FIELD_BYTES;
+
+  private final ByteBuffer byteBuffer;
 
   private DataPage(final byte[] bytes) {
-    super(bytes);
+    this.byteBuffer = ByteBuffer.wrap(bytes);
   }
 
-  static DataPage newPage(final int pageNr, final byte[] bytes) {
-    assert (pageNr > 0); // Data page number must be positive. Page 0 is reserved for metadata.
+  static DataPage newPage(final byte[] bytes) {
     final var page = new DataPage(bytes);
-    page.setPageNumber(pageNr);
     page.setFreeSpaceOffset(DATA_SEGMENT_OFFSET);
     return page;
   }
 
   static DataPage existingPage(final byte[] bytes) {
-    final var page = new DataPage(bytes);
-    assert (page.getPageNumber() > 0); // Data page number must be positive. Page 0 is reserved for metadata.
-    return page;
+    return new DataPage(bytes);
   }
 
   boolean addRecord(final byte[] key, final byte[] value) {

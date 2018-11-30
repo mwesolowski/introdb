@@ -16,7 +16,7 @@ class DataPageTest {
 
   @BeforeEach
   void setUp() {
-    page = DataPage.newPage(1, new byte[pageSize]);
+    page = DataPage.newPage(new byte[pageSize]);
   }
 
   @Test
