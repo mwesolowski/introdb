@@ -36,7 +36,7 @@ final class DataPageOperator {
       throw new IllegalArgumentException("Entry is too big.");
     }
     if (newFreeSpaceOffset <= bufferCapacity) {
-      writeRecord(freeSpaceOffset, key, value);
+      saveNewRecord(freeSpaceOffset, key, value);
       setFreeSpaceOffset(newFreeSpaceOffset);
       return true;
     } else {
@@ -47,8 +47,8 @@ final class DataPageOperator {
   byte[] removeRecord(final byte[] key) {
     final var recordOffset = findRecordOffset(key);
     if (recordOffset > -1) {
-      byteBuffer.position(recordOffset).put((byte) 1);
-      return readRecordValue(recordOffset);
+      markRecordAsDeleted(recordOffset);
+      return loadRecordValue(recordOffset);
     } else {
       return null;
     }
@@ -56,7 +56,7 @@ final class DataPageOperator {
 
   byte[] getRecordValue(final byte[] key) {
     final var recordOffset = findRecordOffset(key);
-    return recordOffset > -1 ? readRecordValue(recordOffset) : null;
+    return recordOffset > -1 ? loadRecordValue(recordOffset) : null;
   }
 
   private int getFreeSpaceOffset() {
@@ -71,25 +71,25 @@ final class DataPageOperator {
     final var wantedKeyLength = wantedKey.length;
     final var freeSpaceOffset = getFreeSpaceOffset();
     var currentRecordOffset = DATA_SEGMENT_OFFSET;
+    var recordKey = new byte[wantedKeyLength];
     while (currentRecordOffset < freeSpaceOffset) {
       byteBuffer.position(currentRecordOffset);
-      final var isDeleted = byteBuffer.get();
-      final var keyLength = byteBuffer.getInt();
-      final var valueLength = byteBuffer.getInt();
-      if (isDeleted == (byte) 0 && keyLength == wantedKeyLength) {
-        final var key = new byte[keyLength];
+      final boolean isRecordNotDeleted = byteBuffer.get() == (byte) 0;
+      final var recordKeyLength = byteBuffer.getInt();
+      final var recordValueLength = byteBuffer.getInt();
+      if (isRecordNotDeleted && recordKeyLength == wantedKeyLength) {
         byteBuffer.position(currentRecordOffset + RECORD_META_DATA_BYTES);
-        byteBuffer.get(key);
-        if (Arrays.equals(key, wantedKey)) {
+        byteBuffer.get(recordKey);
+        if (Arrays.equals(recordKey, wantedKey)) {
           return currentRecordOffset;
         }
       }
-      currentRecordOffset += RECORD_META_DATA_BYTES + keyLength + valueLength;
+      currentRecordOffset += RECORD_META_DATA_BYTES + recordKeyLength + recordValueLength;
     }
     return -1;
   }
 
-  private byte[] readRecordValue(final int offset) {
+  private byte[] loadRecordValue(final int offset) {
     byteBuffer.position(offset + DELETED_FLAG_BYTES);
     final var keyLength = byteBuffer.getInt();
     final var valueLength = byteBuffer.getInt();
@@ -99,13 +99,17 @@ final class DataPageOperator {
     return value;
   }
 
-  private void writeRecord(final int offset, final byte[] key, final byte[] value) {
+  private void saveNewRecord(final int offset, final byte[] key, final byte[] value) {
     byteBuffer.position(offset)
-        .put((byte) 0) // is deleted
-        .putInt(key.length) // serialized key length
-        .putInt(value.length) // serialized value length
-        .put(key) // serialized key
-        .put(value); // serialized value
+        .put((byte) 0)
+        .putInt(key.length)
+        .putInt(value.length)
+        .put(key)
+        .put(value);
+  }
+
+  private void markRecordAsDeleted(int recordOffset) {
+    byteBuffer.position(recordOffset).put((byte) 1);
   }
 
 }

@@ -7,7 +7,7 @@ import java.nio.file.Path;
 final class UnorderedHeapFile implements Store {
   private final Store delegate;
 
-  UnorderedHeapFile(Path path, int maxNrPages, int pageSize) throws IOException {
+  UnorderedHeapFile(final Path path, final int maxNrPages, final int pageSize) throws IOException {
     final var maximumFileSize = (long) maxNrPages * (long) pageSize;
     if (maximumFileSize <= Integer.MAX_VALUE) {
       delegate = new SingleMMapUnorderedHeapFile(path, maxNrPages, pageSize);
@@ -21,17 +21,17 @@ final class UnorderedHeapFile implements Store {
   }
 
   @Override
-  public Object remove(Serializable key) throws IOException, ClassNotFoundException {
+  public Object remove(final Serializable key) throws IOException, ClassNotFoundException {
     return delegate.remove(key);
   }
 
   @Override
-  public Object get(Serializable key) throws IOException, ClassNotFoundException {
+  public Object get(final Serializable key) throws IOException, ClassNotFoundException {
     return delegate.get(key);
   }
 
   @Override
-  public void put(Entry entry) throws IOException, ClassNotFoundException {
+  public void put(final Entry entry) throws IOException, ClassNotFoundException {
     delegate.put(entry);
   }
 }

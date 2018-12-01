@@ -21,7 +21,7 @@ final class Serializer {
 
   private void resetOutputBuffers() throws IOException {
     byteArrayOutputStream.reset();
-    byteArrayOutputStream.write(serializationMagicAndVersion, 0, serializationMagicAndVersion.length);
+    byteArrayOutputStream.writeBytes(serializationMagicAndVersion);
     objectOutputStream.reset();
   }
 

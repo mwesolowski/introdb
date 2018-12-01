@@ -3,31 +3,31 @@ package introdb.heap;
 import java.nio.MappedByteBuffer;
 import java.util.Arrays;
 
-final class DataPageSwitch {
+final class DataPageSelector {
   private final MappedByteBuffer mappedByteBuffer;
   private final int pageSize;
   private final byte[] selectedPageData;
   private int selectedPageOffset;
   private DataPageOperator pageOperator;
 
-  DataPageSwitch(final MappedByteBuffer mappedByteBuffer, final int pageSize) {
+  DataPageSelector(final MappedByteBuffer mappedByteBuffer, final int pageSize) {
     this.mappedByteBuffer = mappedByteBuffer;
     this.pageSize = pageSize;
     this.selectedPageData = new byte[pageSize];
     this.pageOperator = new DataPageOperator(selectedPageData);
   }
 
-  void loadPage(final int pageNumber) {
+  void selectPage(final int pageNumber) {
     selectedPageOffset = pageSize * pageNumber;
-    mappedByteBuffer.position(selectedPageOffset).get(selectedPageData);
+    loadSelectedPageDataFromMemoryMappedFile();
     pageOperator.initializeExistingPage();
   }
 
   void createAndSelectPage(final int pageNumber) {
-    selectedPageOffset = pageSize * pageNumber;
     Arrays.fill(selectedPageData, (byte) 0);
+    selectedPageOffset = pageSize * pageNumber;
     pageOperator.initializeNewPage();
-    saveSelectedPage();
+    saveSelectedPageDataToMemoryMappedFile();
   }
 
   byte[] findInSelectedPage(final byte[] key) {
@@ -37,7 +37,7 @@ final class DataPageSwitch {
   boolean addToSelectedPage(final byte[] key, final byte[] value) {
     final boolean added = pageOperator.addRecord(key, value);
     if (added) {
-      saveSelectedPage();
+      saveSelectedPageDataToMemoryMappedFile();
     }
     return added;
   }
@@ -45,12 +45,16 @@ final class DataPageSwitch {
   byte[] removeFromSelectedPage(final byte[] key) {
     final var removedValue = pageOperator.removeRecord(key);
     if (removedValue != null) {
-      saveSelectedPage();
+      saveSelectedPageDataToMemoryMappedFile();
     }
     return removedValue;
   }
 
-  private void saveSelectedPage() {
+  private void loadSelectedPageDataFromMemoryMappedFile() {
+    mappedByteBuffer.position(selectedPageOffset).get(selectedPageData);
+  }
+
+  private void saveSelectedPageDataToMemoryMappedFile() {
     mappedByteBuffer.position(selectedPageOffset).put(selectedPageData);
   }
 
