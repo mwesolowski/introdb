@@ -82,10 +82,10 @@ final class SingleMMapUnorderedHeapFile implements Store {
 
   private void addNextPage() {
     final var numberOfPages = metaDataPageOperator.getNumberOfPages();
-    if (numberOfPages == maxNrPages) {
+    final var nextPageNumber = (int) numberOfPages + 1;
+    if (nextPageNumber == maxNrPages) {
       throw new TooManyPages(maxNrPages);
     }
-    final var nextPageNumber = (int) numberOfPages + 1;
     dataPageSelector.createAndSelectPage(nextPageNumber);
     metaDataPageOperator.setNumberOfPages(nextPageNumber);
   }
