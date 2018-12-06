@@ -25,7 +25,7 @@ final class Serializer {
     objectOutputStream.reset();
   }
 
-  Object deserialize(byte[] serializedObject) throws IOException, ClassNotFoundException {
+  Object deserialize(final byte[] serializedObject) throws IOException, ClassNotFoundException {
     final var byteArrayInputStream = new ByteArrayInputStream(serializedObject);
     try (final var objectInputStream = new ObjectInputStream(byteArrayInputStream)) {
       return objectInputStream.readObject();
