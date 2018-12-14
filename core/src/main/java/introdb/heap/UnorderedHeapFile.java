@@ -32,7 +32,7 @@ final class UnorderedHeapFile implements Store {
   }
 
   @Override
-  public Object get(final Serializable key) throws IOException, ClassNotFoundException {
+  public synchronized Object get(final Serializable key) throws IOException, ClassNotFoundException {
     final var serializedKey = serializer.serialize(key);
     final var startFromPage = recordPageNumberCache.getOrDefault(key, 0L);
     for (var pageNumber = startFromPage; pageNumber < numberOfPages; pageNumber++) {
@@ -47,7 +47,7 @@ final class UnorderedHeapFile implements Store {
   }
 
   @Override
-  public void put(final Entry entry) throws IOException {
+  public synchronized void put(final Entry entry) throws IOException {
     removeRecord(entry.key());
     final var serializedKey = serializer.serialize(entry.key());
     final var serializedValue = serializer.serialize(entry.value());
@@ -60,7 +60,7 @@ final class UnorderedHeapFile implements Store {
   }
 
   @Override
-  public Object remove(final Serializable key) throws IOException, ClassNotFoundException {
+  public synchronized Object remove(final Serializable key) throws IOException, ClassNotFoundException {
     final var serializedValue = removeRecord(key);
     return serializedValue != null ? serializer.deserialize(serializedValue) : null;
   }
