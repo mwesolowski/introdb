@@ -55,7 +55,11 @@ public class ObjectPool<T> {
   }
 
   public void returnObject(T object) {
-    queue.add(object);
+    if (validator.validate(object)) {
+      queue.add(object);
+    } else {
+      queue.add(fcty.create());
+    }
   }
 
   public void shutdown() throws InterruptedException {
